@@ -1,0 +1,762 @@
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>随机抽奖页面</title>
+
+<style>
+*{box-sizing:border-box}
+
+body{
+    margin:0;
+    font-family:Arial,"Microsoft YaHei",sans-serif;
+    background:linear-gradient(135deg,#111827,#1f2937);
+    color:#fff;
+    min-height:100vh;
+    padding:28px
+}
+
+.container{
+    max-width:1100px;
+    margin:auto
+}
+
+h1{
+    text-align:center;
+    margin:0 0 25px;
+    font-size:32px
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:1fr 1.25fr;
+    gap:22px
+}
+
+.panel{
+    background:#ffffff10;
+    border:1px solid #ffffff20;
+    border-radius:18px;
+    padding:22px;
+    box-shadow:0 12px 35px #0005;
+    backdrop-filter:blur(8px)
+}
+
+h2{
+    margin-top:0
+}
+
+.subtitle{
+    color:#cbd5e1;
+    font-size:14px;
+    margin-bottom:18px
+}
+
+/* 倒计时 */
+
+.cooldown{
+    text-align:center;
+    font-size:14px;
+    font-weight:bold;
+    color:#facc15;
+    margin:10px 0 15px;
+    min-height:20px
+}
+
+.cooldown.ready{
+    color:#4ade80
+}
+
+/* 轮盘 */
+
+.number-result{
+    height:150px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    margin:15px 0;
+    flex-wrap:wrap
+}
+
+.ball{
+    width:125px;
+    height:125px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:55px;
+    font-weight:bold;
+    box-shadow:0 10px 30px #0008;
+    border:4px solid #fff
+}
+
+.mini-ball{
+    width:64px;
+    height:64px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:22px;
+    font-weight:bold;
+    box-shadow:0 6px 16px #0008;
+    border:3px solid #fff
+}
+
+.buttons{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap
+}
+
+button{
+    border:0;
+    border-radius:10px;
+    padding:12px 18px;
+    background:#2563eb;
+    color:#fff;
+    font-weight:bold;
+    cursor:pointer;
+    font-size:15px
+}
+
+button:hover:not(:disabled){
+    filter:brightness(1.15)
+}
+
+button.secondary{
+    background:#475569
+}
+
+button:disabled{
+    opacity:.45;
+    cursor:not-allowed
+}
+
+.history{
+    margin-top:18px;
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap
+}
+
+.history span{
+    background:#334155;
+    padding:7px 11px;
+    border-radius:8px
+}
+
+/* 牌型 */
+
+.cards{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:12px;
+    margin:18px 0;
+    min-height:175px
+}
+
+.card{
+    background:#fff;
+    color:#111827;
+    border-radius:12px;
+    min-height:165px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    box-shadow:0 8px 20px #0005;
+    font-weight:bold
+}
+
+.card .rank{
+    font-size:34px
+}
+
+.card .suit{
+    font-size:42px
+}
+
+.red{
+    color:#dc2626
+}
+
+.card-type{
+    font-size:13px;
+    color:#64748b;
+    margin-top:5px
+}
+
+.notice{
+    margin-top:15px;
+    color:#cbd5e1;
+    font-size:13px;
+    line-height:1.6
+}
+
+@media(max-width:800px){
+    .grid{
+        grid-template-columns:1fr
+    }
+
+    .cards{
+        grid-template-columns:repeat(2,1fr)
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>🎲 随机抽奖控制台</h1>
+
+<div class="grid">
+
+<!-- =========================
+     奖池一
+========================= -->
+
+<section class="panel">
+
+<h2>🎡 奖池一：轮盘数字</h2>
+
+<div class="subtitle">
+数字范围：0–36
+</div>
+
+<div class="cooldown ready" id="numberCooldown">
+    ✓ 可以抽奖
+</div>
+
+<div class="number-result">
+    <div class="ball" id="numberResult">?</div>
+</div>
+
+<div class="buttons" id="numberButtons"></div>
+
+<div class="history" id="numberHistory"></div>
+
+<div class="notice">
+    按钮“随机抽 1–5”表示一次连续抽取对应数量的数字；
+    每次抽取独立随机。抽取后冷却1分钟。
+</div>
+
+</section>
+
+
+<!-- =========================
+     奖池二
+========================= -->
+
+<section class="panel">
+
+<h2>🃏 奖池二：牌型卡片</h2>
+
+<div class="subtitle">
+奖池固定包含：两对×4、一对×3、顺子×3、三条×2、同花×2、葫芦×2。
+每次随机抽取4张，不重复抽取同一张卡片。
+</div>
+
+<div class="cooldown ready" id="cardCooldown">
+    ✓ 可以抽奖
+</div>
+
+<div class="cards" id="cards"></div>
+
+<div class="buttons">
+
+<button id="drawCardButton" onclick="drawCards()">
+    随机抽取 4 张卡片
+</button>
+
+<button class="secondary" onclick="resetCards()">
+    重置牌池
+</button>
+
+</div>
+
+<div class="notice" id="cardNotice">
+    当前牌池：16 张
+</div>
+
+</section>
+
+</div>
+</div>
+
+
+<script>
+
+/* =====================================================
+   独立冷却时间
+===================================================== */
+
+const COOLDOWN_TIME = 60;
+
+/* 奖池一冷却 */
+let numberCooldown = 0;
+
+/* 奖池二冷却 */
+let cardCooldown = 0;
+
+
+/* 每秒更新两个倒计时 */
+
+setInterval(()=>{
+
+    if(numberCooldown > 0){
+        numberCooldown--;
+    }
+
+    if(cardCooldown > 0){
+        cardCooldown--;
+    }
+
+    updateCooldowns();
+
+},1000);
+
+
+/* =====================================================
+   倒计时显示
+===================================================== */
+
+function formatTime(seconds){
+
+    const m =
+        Math.floor(seconds / 60);
+
+    const s =
+        seconds % 60;
+
+    return String(m).padStart(2,"0")
+        + ":"
+        + String(s).padStart(2,"0");
+}
+
+
+function updateCooldowns(){
+
+    const numberBox =
+        document.getElementById(
+            "numberCooldown"
+        );
+
+    const cardBox =
+        document.getElementById(
+            "cardCooldown"
+        );
+
+
+    /* 奖池一 */
+
+    if(numberCooldown > 0){
+
+        numberBox.textContent =
+            "⏳ 冷却倒计时：" +
+            formatTime(numberCooldown);
+
+        numberBox.classList.remove("ready");
+
+    }else{
+
+        numberBox.textContent =
+            "✓ 可以抽奖";
+
+        numberBox.classList.add("ready");
+    }
+
+
+    /* 奖池二 */
+
+    if(cardCooldown > 0){
+
+        cardBox.textContent =
+            "⏳ 冷却倒计时：" +
+            formatTime(cardCooldown);
+
+        cardBox.classList.remove("ready");
+
+    }else{
+
+        cardBox.textContent =
+            "✓ 可以抽奖";
+
+        cardBox.classList.add("ready");
+    }
+
+
+    /* 更新奖池一按钮 */
+
+    document
+        .querySelectorAll("#numberButtons button")
+        .forEach(button=>{
+            button.disabled =
+                numberCooldown > 0;
+        });
+
+
+    /* 更新奖池二抽取按钮 */
+
+    document.getElementById(
+        "drawCardButton"
+    ).disabled =
+        cardCooldown > 0;
+
+}
+
+
+/* =====================================================
+   奖池一：轮盘
+===================================================== */
+
+const numberHistory=[];
+
+const numberButtons =
+    document.getElementById(
+        "numberButtons"
+    );
+
+
+for(let n=1;n<=5;n++){
+
+    const b =
+        document.createElement("button");
+
+    b.textContent =
+        "随机抽 " + n;
+
+    b.onclick = ()=>{
+
+        if(numberCooldown > 0){
+            return;
+        }
+
+        drawNumbers(n);
+
+        /* 只锁定奖池一 */
+
+        numberCooldown =
+            COOLDOWN_TIME;
+
+        updateCooldowns();
+    };
+
+    numberButtons.appendChild(b);
+}
+
+
+function randInt(min,max){
+
+    return Math.floor(
+        Math.random() *
+        (max-min+1)
+    ) + min;
+}
+
+
+const rouletteRed =
+    new Set([
+        1,3,5,7,9,
+        12,14,16,18,19,
+        21,23,25,27,
+        30,32,34,36
+    ]);
+
+
+function rouletteColor(n){
+
+    if(n===0){
+
+        return {
+            bg:"#16a34a",
+            label:"绿"
+        };
+    }
+
+    return rouletteRed.has(n)
+
+        ? {
+            bg:"#dc2626",
+            label:"红"
+        }
+
+        : {
+            bg:"#111827",
+            label:"黑"
+        };
+}
+
+
+function drawNumbers(count){
+
+    const results=[];
+
+    for(let i=0;i<count;i++){
+
+        const v =
+            randInt(0,36);
+
+        results.push(v);
+
+        numberHistory.unshift(v);
+    }
+
+
+    const resultBox =
+        document.getElementById(
+            "numberResult"
+        );
+
+
+    if(count===1){
+
+        const c =
+            rouletteColor(results[0]);
+
+        resultBox.innerHTML = `
+            <div
+                class="ball"
+                style="background:${c.bg}"
+            >
+                ${results[0]}
+            </div>
+        `;
+
+    }else{
+
+        resultBox.innerHTML =
+            results.map(v=>{
+
+                const c =
+                    rouletteColor(v);
+
+                return `
+                    <div
+                        class="mini-ball"
+                        style="background:${c.bg}"
+                        title="${c.label}"
+                    >
+                        ${v}
+                    </div>
+                `;
+
+            }).join("");
+    }
+
+
+    document.getElementById(
+        "numberHistory"
+    ).innerHTML =
+
+        numberHistory
+        .slice(0,20)
+        .map(x=>{
+
+            const c =
+                rouletteColor(x);
+
+            return `
+                <span
+                    style="
+                        background:${c.bg};
+                        color:#fff
+                    "
+                >
+                    ${x}
+                </span>
+            `;
+
+        }).join("");
+}
+
+
+/* =====================================================
+   奖池二：牌型池
+===================================================== */
+
+let pool=[];
+
+
+function makePool(){
+
+    pool=[];
+
+    const types=[
+        ["两对",4],
+        ["一对",3],
+        ["顺子",3],
+        ["三条",2],
+        ["同花",2],
+        ["葫芦",2]
+    ];
+
+    types.forEach(([type,count])=>{
+
+        for(let i=1;i<=count;i++){
+
+            pool.push({
+                type,
+                id:type+i
+            });
+        }
+    });
+}
+
+
+/* =====================================================
+   奖池二抽取
+===================================================== */
+
+function drawCards(){
+
+    if(cardCooldown > 0){
+        return;
+    }
+
+    const selected=[];
+
+    /*
+       从当前16张牌型卡片中抽4张，
+       同一次不会重复同一张卡片。
+    */
+
+    for(let i=0;i<4;i++){
+
+        const index =
+            randInt(
+                0,
+                pool.length-1
+            );
+
+        selected.push(
+            pool[index]
+        );
+
+        pool.splice(index,1);
+    }
+
+
+    renderCards(selected);
+
+    updateNotice();
+
+
+    /* 只锁定奖池二 */
+
+    cardCooldown =
+        COOLDOWN_TIME;
+
+    updateCooldowns();
+}
+
+
+/* =====================================================
+   显示牌型卡片
+===================================================== */
+
+function renderCards(items){
+
+    const box =
+        document.getElementById(
+            "cards"
+        );
+
+    box.innerHTML="";
+
+
+    if(!items.length){
+
+        box.innerHTML =
+            `
+            <div class="card">
+                <div class="rank">?</div>
+                <div class="suit">🃏</div>
+                <div class="card-type">
+                    等待抽取
+                </div>
+            </div>
+            `.repeat(4);
+
+        return;
+    }
+
+
+    items.forEach((x,i)=>{
+
+        const c =
+            document.createElement("div");
+
+        c.className="card";
+
+        c.innerHTML=`
+            <div class="rank">
+                ${i+1}
+            </div>
+
+            <div class="suit">
+                🃏
+            </div>
+
+            <div class="card-type">
+                ${x.type}
+            </div>
+        `;
+
+        box.appendChild(c);
+    });
+}
+
+
+/* =====================================================
+   重置牌池
+===================================================== */
+
+function resetCards(){
+
+    makePool();
+
+    renderCards([]);
+
+    updateNotice();
+}
+
+
+function updateNotice(){
+
+    const count =
+        pool.length;
+
+    document.getElementById(
+        "cardNotice"
+    ).textContent =
+
+        `当前牌池：${count} 张；` +
+        `两对4张、一对3张、顺子3张、` +
+        `三条2张、同花2张、葫芦2张`;
+}
+
+
+/* =====================================================
+   初始化
+===================================================== */
+
+makePool();
+
+renderCards([]);
+
+updateNotice();
+
+updateCooldowns();
+
+</script>
+
+</body>
+</html>
+```
