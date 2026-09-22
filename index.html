@@ -69,42 +69,162 @@ h2{
     color:#4ade80
 }
 
-/* 轮盘 */
+/* =========================
+   欧式轮盘
+========================= */
 
 .number-result{
-    height:150px;
+    min-height:350px;
     display:flex;
     align-items:center;
     justify-content:center;
-    gap:10px;
-    margin:15px 0;
-    flex-wrap:wrap
+    margin:10px 0 18px;
+    position:relative;
 }
 
-.ball{
-    width:125px;
-    height:125px;
-    border-radius:50%;
+.roulette-wrap{
+    width:320px;
+    height:320px;
+    position:relative;
     display:flex;
     align-items:center;
     justify-content:center;
-    font-size:55px;
-    font-weight:bold;
-    box-shadow:0 10px 30px #0008;
-    border:4px solid #fff
 }
 
-.mini-ball{
-    width:64px;
-    height:64px;
+.roulette-wheel{
+    width:300px;
+    height:300px;
     border-radius:50%;
+    position:relative;
+    background:
+        repeating-conic-gradient(
+            from -2.432deg,
+            #caa35a 0deg 2deg,
+            #161616 2deg 12.432deg,
+            #caa35a 12.432deg 14.432deg,
+            #b91c1c 14.432deg 24.864deg
+        );
+    border:10px solid #d4af67;
+    box-shadow:
+        0 12px 30px #000b,
+        inset 0 0 0 5px #5b431b,
+        inset 0 0 35px #000;
+    transition:transform 4s cubic-bezier(.12,.76,.13,1);
+}
+
+.roulette-wheel::before{
+    content:"";
+    position:absolute;
+    inset:25px;
+    border-radius:50%;
+    border:2px solid #e5c477;
+    box-shadow:inset 0 0 0 4px #111, inset 0 0 0 7px #d4af67;
+}
+
+.roulette-wheel::after{
+    content:"";
+    position:absolute;
+    inset:68px;
+    border-radius:50%;
+    background:radial-gradient(circle,#e5c477 0 10%,#8b6b2f 11% 18%,#151515 19% 100%);
+    border:4px solid #d4af67;
+    box-shadow:0 3px 10px #000a;
+}
+
+.roulette-numbers{
+    position:absolute;
+    inset:13px;
+    z-index:3;
+    pointer-events:none;
+}
+
+.roulette-number{
+    position:absolute;
+    left:50%;
+    top:50%;
+    width:28px;
+    height:28px;
+    margin:-14px;
     display:flex;
     align-items:center;
     justify-content:center;
-    font-size:22px;
+    border-radius:50%;
+    color:#fff;
+    font-size:11px;
     font-weight:bold;
-    box-shadow:0 6px 16px #0008;
-    border:3px solid #fff
+    text-shadow:0 1px 2px #000;
+    transform:
+        rotate(var(--angle))
+        translateY(-125px)
+        rotate(calc(-1 * var(--angle)));
+}
+
+.roulette-pointer{
+    position:absolute;
+    z-index:10;
+    top:-4px;
+    left:50%;
+    transform:translateX(-50%);
+    width:0;
+    height:0;
+    border-left:10px solid transparent;
+    border-right:10px solid transparent;
+    border-top:24px solid #facc15;
+    filter:drop-shadow(0 2px 3px #000);
+}
+
+.roulette-result{
+    position:absolute;
+    z-index:8;
+    width:82px;
+    height:82px;
+    border-radius:50%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    background:#111;
+    border:4px solid #facc15;
+    box-shadow:0 4px 18px #000b;
+    font-weight:bold;
+}
+
+.roulette-result .result-number{
+    font-size:30px;
+    line-height:30px;
+}
+
+.roulette-result .result-label{
+    font-size:11px;
+    color:#cbd5e1;
+    margin-top:3px;
+}
+
+.roulette-wrap.spinning .roulette-wheel{
+    filter:brightness(1.08);
+}
+
+.result-list{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:7px;
+    flex-wrap:wrap;
+    margin-top:-5px;
+    min-height:38px;
+}
+
+.result-chip{
+    min-width:38px;
+    height:32px;
+    padding:0 9px;
+    border-radius:16px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#fff;
+    font-weight:bold;
+    box-shadow:0 3px 8px #0006;
 }
 
 .buttons{
@@ -227,7 +347,7 @@ button:disabled{
 <h2>🎡 奖池一：轮盘数字</h2>
 
 <div class="subtitle">
-数字范围：0–36
+欧式轮盘：0–36，共37个号码；每次抽取都会进行轮盘旋转动画。
 </div>
 
 <div class="cooldown ready" id="numberCooldown">
@@ -235,16 +355,27 @@ button:disabled{
 </div>
 
 <div class="number-result">
-    <div class="ball" id="numberResult">?</div>
+    <div class="roulette-wrap" id="rouletteWrap">
+        <div class="roulette-pointer"></div>
+        <div class="roulette-wheel" id="rouletteWheel">
+            <div class="roulette-numbers" id="rouletteNumbers"></div>
+        </div>
+        <div class="roulette-result" id="rouletteResult">
+            <div class="result-number">?</div>
+            <div class="result-label">等待抽奖</div>
+        </div>
+    </div>
 </div>
+
+<div class="result-list" id="numberResults"></div>
 
 <div class="buttons" id="numberButtons"></div>
 
 <div class="history" id="numberHistory"></div>
 
 <div class="notice">
-    按钮“随机抽 1–5”表示一次连续抽取对应数量的数字；
-    每次抽取独立随机。抽取后冷却1分钟。
+    按钮“随机抽 1–5”表示连续进行对应次数的欧式轮盘抽取；
+    每次结果都会显示在轮盘中央及下方结果栏。抽取后冷却1分钟。
 </div>
 
 </section>
@@ -259,8 +390,8 @@ button:disabled{
 <h2>🃏 奖池二：牌型卡片</h2>
 
 <div class="subtitle">
-奖池固定包含：两对×4、一对×3、顺子×3、三条×2、同花×2、葫芦×2。
-每次随机抽取4张，不重复抽取同一张卡片。
+奖池固定包含：两对×9、一对×4、顺子×4、三条×3、同花×2、葫芦×2。
+每次随机抽取4张，不重复抽取同一张卡片；牌型卡片总数为24张。
 </div>
 
 <div class="cooldown ready" id="cardCooldown">
@@ -282,7 +413,7 @@ button:disabled{
 </div>
 
 <div class="notice" id="cardNotice">
-    当前牌池：16 张
+    当前牌池：24 张
 </div>
 
 </section>
@@ -494,85 +625,136 @@ function rouletteColor(n){
 }
 
 
+/* =====================================================
+   欧式轮盘数字与动画
+===================================================== */
+
+const rouletteOrder = [
+    0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,
+    5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26
+];
+
+const rouletteNumbers = document.getElementById("rouletteNumbers");
+const rouletteWheel = document.getElementById("rouletteWheel");
+const rouletteWrap = document.getElementById("rouletteWrap");
+const rouletteResult = document.getElementById("rouletteResult");
+const numberResults = document.getElementById("numberResults");
+
+let rouletteRotation = 0;
+
+/* 创建37个欧洲轮盘号码 */
+rouletteOrder.forEach((num,index)=>{
+    const el = document.createElement("div");
+    el.className = "roulette-number";
+    const angle = index * (360 / 37);
+
+    el.style.setProperty("--angle", angle + "deg");
+
+    const c = rouletteColor(num);
+    el.style.background = c.bg;
+    el.textContent = num;
+
+    rouletteNumbers.appendChild(el);
+});
+
+function setRouletteResult(num,label="最终结果"){
+    const c = rouletteColor(num);
+
+    rouletteResult.style.background = c.bg;
+    rouletteResult.querySelector(".result-number").textContent = num;
+    rouletteResult.querySelector(".result-label").textContent = label;
+}
+
+function spinRoulette(num, callback){
+
+    const index = rouletteOrder.indexOf(num);
+    const slotAngle = index * (360 / 37);
+
+    /* 每次至少旋转5圈，再把目标号码送到顶部 */
+    const extraTurns = 5 + randInt(0,2);
+    const target =
+        rouletteRotation + extraTurns * 360 - slotAngle;
+
+    rouletteRotation = target;
+
+    rouletteWrap.classList.add("spinning");
+    rouletteWheel.style.transform = `rotate(${target}deg)`;
+
+    setTimeout(()=>{
+        setRouletteResult(num, "开奖结果");
+        rouletteWrap.classList.remove("spinning");
+
+        if(callback) callback();
+    },4100);
+}
+
 function drawNumbers(count){
+
+    if(numberCooldown > 0){
+        return;
+    }
 
     const results=[];
 
     for(let i=0;i<count;i++){
-
-        const v =
-            randInt(0,36);
-
-        results.push(v);
-
-        numberHistory.unshift(v);
+        results.push(randInt(0,36));
     }
 
+    /* 动画期间立即锁定奖池一 */
+    numberCooldown = COOLDOWN_TIME;
+    updateCooldowns();
 
-    const resultBox =
-        document.getElementById(
-            "numberResult"
-        );
+    numberResults.innerHTML = "";
 
+    let index = 0;
 
-    if(count===1){
+    function nextSpin(){
 
-        const c =
-            rouletteColor(results[0]);
+        if(index >= results.length){
 
-        resultBox.innerHTML = `
-            <div
-                class="ball"
-                style="background:${c.bg}"
-            >
-                ${results[0]}
-            </div>
-        `;
+            results.slice().reverse().forEach(v=>{
+                numberHistory.unshift(v);
+            });
 
-    }else{
+            updateNumberHistory();
+            return;
+        }
 
-        resultBox.innerHTML =
-            results.map(v=>{
+        const value = results[index];
 
-                const c =
-                    rouletteColor(v);
+        setRouletteResult(value, `第 ${index+1} 次`);
 
-                return `
-                    <div
-                        class="mini-ball"
-                        style="background:${c.bg}"
-                        title="${c.label}"
-                    >
-                        ${v}
-                    </div>
-                `;
+        spinRoulette(value, ()=>{
 
-            }).join("");
+            const c = rouletteColor(value);
+
+            const chip = document.createElement("div");
+            chip.className = "result-chip";
+            chip.style.background = c.bg;
+            chip.textContent = value;
+
+            numberResults.appendChild(chip);
+
+            index++;
+
+            setTimeout(nextSpin,250);
+        });
     }
 
+    nextSpin();
+}
 
-    document.getElementById(
-        "numberHistory"
-    ).innerHTML =
+function updateNumberHistory(){
 
-        numberHistory
-        .slice(0,20)
-        .map(x=>{
-
-            const c =
-                rouletteColor(x);
+    document.getElementById("numberHistory").innerHTML =
+        numberHistory.slice(0,20).map(x=>{
+            const c = rouletteColor(x);
 
             return `
-                <span
-                    style="
-                        background:${c.bg};
-                        color:#fff
-                    "
-                >
+                <span style="background:${c.bg};color:#fff">
                     ${x}
                 </span>
             `;
-
         }).join("");
 }
 
@@ -589,10 +771,10 @@ function makePool(){
     pool=[];
 
     const types=[
-        ["两对",4],
-        ["一对",3],
-        ["顺子",3],
-        ["三条",2],
+        ["两对",9],
+        ["一对",4],
+        ["顺子",4],
+        ["三条",3],
         ["同花",2],
         ["葫芦",2]
     ];
@@ -738,8 +920,8 @@ function updateNotice(){
     ).textContent =
 
         `当前牌池：${count} 张；` +
-        `两对4张、一对3张、顺子3张、` +
-        `三条2张、同花2张、葫芦2张`;
+        `两对9张、一对4张、顺子4张、` +
+        `三条3张、同花2张、葫芦2张`;
 }
 
 
