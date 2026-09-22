@@ -640,14 +640,104 @@ const rouletteWrap = document.getElementById("rouletteWrap");
 const rouletteResult = document.getElementById("rouletteResult");
 const numberResults = document.getElementById("numberResults");
 
-let rouletteRotation = 0;
+/*
+ * 轮盘唯一角度基准：
+ * rouletteOrder[0]（数字0）初始位于12点钟方向。
+ * 数字按照 rouletteOrder 顺时针排列。
+ */
+const ROULETTE_SEGMENTS = rouletteOrder.length;
+const SEGMENT_ANGLE = 360 / ROULETTE_SEGMENTS;
+const POINTER_ANGLE = 0;
+const WHEEL_INITIAL_ANGLE = 0;
+
+let rouletteRotation = WHEEL_INITIAL_ANGLE;
+
+function normalizeAngle(deg){
+    return ((deg % 360) + 360) % 360;
+}
+
+/* 数字在实际 rouletteOrder 中对应的中心角 */
+function getNumberAngle(num){
+    const index = rouletteOrder.indexOf(num);
+
+    if(index === -1){
+        throw new Error(`轮盘不存在数字：${num}`);
+    }
+
+    return WHEEL_INITIAL_ANGLE + index * SEGMENT_ANGLE;
+}
+
+/*
+ * 由“唯一开奖结果”反推目标旋转角度。
+ * 禁止另外随机一个 rotation。
+ */
+function calculateTargetRotation(selectedNumber){
+    const numberAngle = getNumberAngle(selectedNumber);
+    const extraTurns = 5 + randInt(0,2);
+
+    /*
+     * 关键修复：
+     * desiredRotation 是“绝对目标角度”；
+     * 不能直接把 desiredRotation 再加到当前 rotation 上。
+     *
+     * 例如当前18在顶部、目标32时：
+     * currentRotation = 77.8378°（等效角度）
+     * targetRotation  = 350.2703°（32到顶部所需角度）
+     * 本次真正需要增加的是：
+     * 350.2703 - 77.8378 = 272.4325°
+     *
+     * 因此必须计算：
+     * desiredRotation - currentRotation
+     */
+    const desiredRotation =
+        normalizeAngle(
+            POINTER_ANGLE - numberAngle
+        );
+
+    const currentNormalized =
+        normalizeAngle(rouletteRotation);
+
+    const deltaToTarget =
+        normalizeAngle(
+            desiredRotation - currentNormalized
+        );
+
+    return rouletteRotation +
+           extraTurns * 360 +
+           deltaToTarget;
+}
+
+/*
+ * 根据最终 rotation 反推顶部指针实际落在哪个数字。
+ * 用于验证“视觉停止位置”与 selectedNumber 是否一致。
+ */
+function getActualNumberFromRotation(finalRotation){
+    const pointerOnWheel =
+        normalizeAngle(POINTER_ANGLE - finalRotation);
+
+    const relativeAngle =
+        normalizeAngle(pointerOnWheel - WHEEL_INITIAL_ANGLE);
+
+    /*
+     * rouletteOrder 中的数字位于各自扇区中心，
+     * 因此取最近的 index。
+     */
+    const actualIndex =
+        Math.round(relativeAngle / SEGMENT_ANGLE) %
+        ROULETTE_SEGMENTS;
+
+    return {
+        actualIndex,
+        actualNumber: rouletteOrder[actualIndex]
+    };
+}
 
 /* 创建37个欧洲轮盘号码 */
 rouletteOrder.forEach((num,index)=>{
     const el = document.createElement("div");
     el.className = "roulette-number";
-    const angle = index * (360 / 37);
 
+    const angle = index * SEGMENT_ANGLE;
     el.style.setProperty("--angle", angle + "deg");
 
     const c = rouletteColor(num);
@@ -665,27 +755,144 @@ function setRouletteResult(num,label="最终结果"){
     rouletteResult.querySelector(".result-label").textContent = label;
 }
 
-function spinRoulette(num, callback){
+/*
+ * 一次 spin 只有一个 selectedNumber。
+ *
+ * selectedNumber 同时决定：
+ * 1. 最终轮盘位置
+ * 2. 动画结束后的实际位置验证
+ * 3. 中央开奖结果
+ * 4. 下方结果记录
+ *
+ * 不在动画结束后重新 Math.random()。
+ */
+function spinRoulette(selectedNumber, callback){
 
-    const index = rouletteOrder.indexOf(num);
-    const slotAngle = index * (360 / 37);
+    if(!rouletteOrder.includes(selectedNumber)){
+        throw new Error(`无效的开奖结果：${selectedNumber}`);
+    }
 
-    /* 每次至少旋转5圈，再把目标号码送到顶部 */
-    const extraTurns = 5 + randInt(0,2);
+    const selectedIndex =
+        rouletteOrder.indexOf(selectedNumber);
+
     const target =
-        rouletteRotation + extraTurns * 360 - slotAngle;
+        calculateTargetRotation(selectedNumber);
 
     rouletteRotation = target;
 
     rouletteWrap.classList.add("spinning");
-    rouletteWheel.style.transform = `rotate(${target}deg)`;
 
-    setTimeout(()=>{
-        setRouletteResult(num, "开奖结果");
+    /*
+     * 监听真实 transition 完成，而不是依赖固定4.1秒。
+     */
+    const onTransitionEnd = (event)=>{
+        if(event.propertyName !== "transform"){
+            return;
+        }
+
+        rouletteWheel.removeEventListener(
+            "transitionend",
+            onTransitionEnd
+        );
+
+        const finalRotation = rouletteRotation;
+        let actual =
+            getActualNumberFromRotation(finalRotation);
+
+        console.log({
+            selectedNumber,
+            selectedIndex,
+            segmentAngle: SEGMENT_ANGLE,
+            targetRotation: target,
+            finalRotation,
+            actualIndex: actual.actualIndex,
+            actualNumber: actual.actualNumber
+        });
+
+        /*
+         * 顶部指针才是最终视觉判定。
+         * 如果计算出现偏差，只修正轮盘角度，
+         * 绝不修改 selectedNumber。
+         */
+        if(actual.actualNumber !== selectedNumber){
+
+            console.error(
+                "轮盘停止位置校验失败，正在自动校准：",
+                {
+                    selectedNumber,
+                    actualNumber: actual.actualNumber,
+                    finalRotation
+                }
+            );
+
+            /*
+             * 直接计算 selectedNumber 应位于顶部所需的角度。
+             * 这里不重新生成开奖结果。
+             */
+            const desiredCorrectionRotation =
+                normalizeAngle(
+                    POINTER_ANGLE -
+                    getNumberAngle(selectedNumber)
+                );
+
+            const correction =
+                normalizeAngle(
+                    desiredCorrectionRotation -
+                    normalizeAngle(rouletteRotation)
+                );
+
+            const exactRotation =
+                rouletteRotation + correction;
+
+            rouletteRotation = exactRotation;
+
+            /*
+             * 仅修正最终几何位置，不改变页面UI。
+             */
+            rouletteWheel.style.transition = "none";
+            rouletteWheel.style.transform =
+                `rotate(${exactRotation}deg)`;
+
+            void rouletteWheel.offsetWidth;
+
+            rouletteWheel.style.transition =
+                "transform 4s cubic-bezier(.12,.76,.13,1)";
+
+            actual =
+                getActualNumberFromRotation(
+                    exactRotation
+                );
+
+            console.log({
+                correctionApplied: true,
+                exactRotation,
+                correctedActualIndex: actual.actualIndex,
+                correctedActualNumber: actual.actualNumber
+            });
+        }
+
+        /*
+         * 中央结果直接使用唯一 source of truth。
+         */
+        setRouletteResult(
+            selectedNumber,
+            "开奖结果"
+        );
+
         rouletteWrap.classList.remove("spinning");
 
-        if(callback) callback();
-    },4100);
+        if(callback){
+            callback();
+        }
+    };
+
+    rouletteWheel.addEventListener(
+        "transitionend",
+        onTransitionEnd
+    );
+
+    rouletteWheel.style.transform =
+        `rotate(${target}deg)`;
 }
 
 function drawNumbers(count){
@@ -694,6 +901,10 @@ function drawNumbers(count){
         return;
     }
 
+    /*
+     * 每一次 spin 只生成一次结果。
+     * 后续所有逻辑都使用这个 results 中的值。
+     */
     const results=[];
 
     for(let i=0;i<count;i++){
@@ -720,25 +931,40 @@ function drawNumbers(count){
             return;
         }
 
-        const value = results[index];
+        /*
+         * 当前 spin 的唯一开奖结果 source of truth。
+         */
+        const selectedNumber = results[index];
 
-        setRouletteResult(value, `第 ${index+1} 次`);
+        setRouletteResult(
+            selectedNumber,
+            `第 ${index+1} 次`
+        );
 
-        spinRoulette(value, ()=>{
+        spinRoulette(
+            selectedNumber,
+            ()=>{
 
-            const c = rouletteColor(value);
+                const c =
+                    rouletteColor(selectedNumber);
 
-            const chip = document.createElement("div");
-            chip.className = "result-chip";
-            chip.style.background = c.bg;
-            chip.textContent = value;
+                const chip =
+                    document.createElement("div");
 
-            numberResults.appendChild(chip);
+                chip.className = "result-chip";
+                chip.style.background = c.bg;
+                chip.textContent = selectedNumber;
 
-            index++;
+                numberResults.appendChild(chip);
 
-            setTimeout(nextSpin,250);
-        });
+                index++;
+
+                setTimeout(
+                    nextSpin,
+                    250
+                );
+            }
+        );
     }
 
     nextSpin();
@@ -757,6 +983,7 @@ function updateNumberHistory(){
             `;
         }).join("");
 }
+
 
 
 /* =====================================================
